@@ -1,9 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const passport = require('passport');
-const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+require('./config/passport');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth');
 
@@ -15,26 +15,13 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: process.env.CLIENT_URL,
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
   credentials: true,
 }));
 app.use(express.json());
 app.use(cookieParser());
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      httpOnly: true,
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 1 day
-    },
-  })
-);
+
 app.use(passport.initialize());
-app.use(passport.session());
 
 // Routes
 app.use('/auth', authRoutes);
