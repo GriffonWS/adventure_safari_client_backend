@@ -1,41 +1,37 @@
-require('dotenv').config();
-const express = require('express');
-const passport = require('passport');
-const cookieParser = require('cookie-parser');
-const cors = require('cors');
-require('./config/passport');
-const connectDB = require('./config/db');
-const authRoutes = require('./routes/auth');
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const dotenv = require("dotenv");
 
-// Initialize app
+// Load environment variables
+dotenv.config();
+
 const app = express();
 
-// Database connection
-connectDB();
-
 // Middleware
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin:
+      "https://adventure-safari-client-frontend.vercel.app" ||
+      "http://localhost:3000",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+  })
+);
 app.use(express.json());
-app.use(cookieParser());
-
-app.use(passport.initialize());
 
 // Routes
-app.use('/auth', authRoutes);
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/user", require("./routes/user"));
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK' });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
+// Connect to MongoDB
+mongoose
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.log(err));
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Adventure Safari running on port ${PORT}`));
