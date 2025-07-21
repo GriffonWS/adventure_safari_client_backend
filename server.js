@@ -11,13 +11,24 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin:
-      "https://adventure-safari-client-frontend.vercel.app" ||
-      "http://localhost:3000",
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        "https://adventure-safari-client-frontend.vercel.app",
+        "http://localhost:3000"
+      ];
+      
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
   })
 );
+
+
 app.use(express.json());
 
 // Routes
