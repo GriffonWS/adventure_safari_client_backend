@@ -9,7 +9,8 @@ const auth = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-secret-key")
-    // console.log(decoded)
+    // Preserve backward compatibility but prefer req.user
+    req.user = { email: decoded.email }
     req.body.email = decoded.email
     next()
   } catch (error) {

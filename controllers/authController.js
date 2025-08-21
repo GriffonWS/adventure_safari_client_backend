@@ -393,7 +393,7 @@ exports.disable2FA = async (req, res) => {
 // Get 2FA status
 exports.get2FAStatus = async (req, res) => {
   try {
-    const userEmail = req.user.email; // From auth middleware
+    const userEmail = req.body.email; // From auth middleware
     
     const user = await User.findOne({ email: userEmail });
     if (!user) {
