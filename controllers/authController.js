@@ -1,5 +1,7 @@
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const speakeasy = require("speakeasy");
+const qrcode = require("qrcode");
 const User = require("../models/User");
 const { sendVerificationEmail, sendPasswordResetEmail } = require("../utils/emailService");
 
@@ -39,6 +41,7 @@ exports.register = async (req, res) => {
       email,
       password,
       verificationToken,
+      isRegistrationPayment: false, 
     });
 
     await user.save();
@@ -128,7 +131,7 @@ exports.verifyEmail = async (req, res) => {
   }
 };
 
-// Login user
+// Login user (Step 1: Email/Password verification)
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -159,16 +162,35 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
-    // Generate JWT token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || "your-secret-key", { expiresIn: "7d" });
+    // Check if user has 2FA enabled
+    if (user.twoFactorSecret) {
+      // Generate temporary token for 2FA verification (valid for 5 minutes)
+      const tempToken = jwt.sign(
+        { email: user.email, purpose: '2fa' }, 
+        process.env.JWT_SECRET || "your-secret-key", 
+        { expiresIn: "5m" }
+      );
+
+      return res.json({
+        message: "Please enter your 2FA code",
+        requires2FA: true,
+        tempToken,
+        email: user.email
+      });
+    }
+
+    // If no 2FA, generate final JWT token
+    const token = jwt.sign({ email: user.email }, process.env.JWT_SECRET || "your-secret-key", { expiresIn: "7d" });
 
     res.json({
       message: "Login successful",
       token,
-      // user: {
-      //   name: user.name,
-      //   email: user.email
-      // },
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        has2FA: false
+      }
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -176,7 +198,217 @@ exports.login = async (req, res) => {
   }
 };
 
+// Verify 2FA code and complete login
+exports.verify2FA = async (req, res) => {
+  try {
+    const { tempToken, code } = req.body;
 
+    if (!tempToken || !code) {
+      return res.status(400).json({ message: "Temporary token and 2FA code are required" });
+    }
+
+    // Verify temporary token
+    let decoded;
+    try {
+      decoded = jwt.verify(tempToken, process.env.JWT_SECRET || "your-secret-key");
+      if (decoded.purpose !== '2fa') {
+        throw new Error('Invalid token purpose');
+      }
+    } catch (error) {
+      return res.status(400).json({ message: "Invalid or expired temporary token" });
+    }
+
+    // Find user
+    const user = await User.findOne({ email: decoded.email });
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+
+    // Verify 2FA code
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorSecret,
+      encoding: 'base32',
+      token: code,
+      window: 2 // Allow 2 time steps tolerance
+    });
+
+    if (!verified) {
+      return res.status(400).json({ message: "Invalid 2FA code" });
+    }
+
+    // Generate final JWT token
+    const token = jwt.sign({ email: user.email }, process.env.JWT_SECRET || "your-secret-key", { expiresIn: "7d" });
+
+    res.json({
+      message: "Login successful",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        has2FA: true
+      }
+    });
+  } catch (error) {
+    console.error("2FA verification error:", error);
+    res.status(500).json({ message: "Server error during 2FA verification" });
+  }
+};
+
+// Generate 2FA secret and QR code (for setup)
+exports.generate2FASecret = async (req, res) => {
+  try {
+    const userEmail = req.body.email; // From auth middleware
+    
+    const user = await User.findOne({ email: userEmail });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Generate secret
+    const secret = speakeasy.generateSecret({
+      name: `Adventure Safari (${user.email})`,
+      issuer: 'Adventure Safari'
+    });
+
+    // Save temporary secret (not activated until verified)
+    user.twoFactorTempSecret = secret.base32;
+    await user.save();
+
+    // Generate QR code
+    const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
+
+    res.json({
+      secret: secret.base32,
+      qrCode: qrCodeUrl,
+      manualEntryKey: secret.base32,
+      message: "Scan the QR code with your authenticator app or enter the manual key"
+    });
+  } catch (error) {
+    console.error("2FA secret generation error:", error);
+    res.status(500).json({ message: "Server error generating 2FA secret" });
+  }
+};
+
+// Enable 2FA after verification
+exports.enable2FA = async (req, res) => {
+  try {
+    const userEmail = req.body.email; // From auth middleware
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ message: "2FA code is required" });
+    }
+
+    const user = await User.findOne({ email: userEmail });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.twoFactorTempSecret) {
+      return res.status(400).json({ message: "No pending 2FA setup found. Please generate a new secret first." });
+    }
+
+    // Verify the code
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorTempSecret,
+      encoding: 'base32',
+      token: code,
+      window: 2
+    });
+
+    if (!verified) {
+      return res.status(400).json({ message: "Invalid 2FA code" });
+    }
+
+    // Enable 2FA
+    user.twoFactorSecret = user.twoFactorTempSecret;
+    user.twoFactorTempSecret = undefined;
+    user.twoFactorEnabled = true;
+    await user.save();
+
+    res.json({ 
+      message: "2FA has been successfully enabled for your account",
+      enabled: true 
+    });
+  } catch (error) {
+    console.error("2FA enable error:", error);
+    res.status(500).json({ message: "Server error enabling 2FA" });
+  }
+};
+
+// Disable 2FA
+exports.disable2FA = async (req, res) => {
+  try {
+    const userEmail = req.body.email; // From auth middleware
+    const { code, password } = req.body;
+
+    if (!code || !password) {
+      return res.status(400).json({ message: "2FA code and password are required" });
+    }
+
+    const user = await User.findOne({ email: userEmail });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.twoFactorSecret) {
+      return res.status(400).json({ message: "2FA is not enabled for this account" });
+    }
+
+    // Verify password
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(400).json({ message: "Invalid password" });
+    }
+
+    // Verify 2FA code
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorSecret,
+      encoding: 'base32',
+      token: code,
+      window: 2
+    });
+
+    if (!verified) {
+      return res.status(400).json({ message: "Invalid 2FA code" });
+    }
+
+    // Disable 2FA
+    user.twoFactorSecret = undefined;
+    user.twoFactorTempSecret = undefined;
+    user.twoFactorEnabled = false;
+    await user.save();
+
+    res.json({ 
+      message: "2FA has been successfully disabled for your account",
+      enabled: false 
+    });
+  } catch (error) {
+    console.error("2FA disable error:", error);
+    res.status(500).json({ message: "Server error disabling 2FA" });
+  }
+};
+
+// Get 2FA status
+exports.get2FAStatus = async (req, res) => {
+  try {
+    const userEmail = req.user.email; // From auth middleware
+    
+    const user = await User.findOne({ email: userEmail });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      enabled: !!user.twoFactorSecret,
+      hasSetupInProgress: !!user.twoFactorTempSecret
+    });
+  } catch (error) {
+    console.error("2FA status error:", error);
+    res.status(500).json({ message: "Server error getting 2FA status" });
+  }
+};
 
 // Resend verification email
 exports.resendVerification = async (req, res) => {
@@ -215,7 +447,6 @@ exports.resendVerification = async (req, res) => {
   }
 };
 
-
 // Forgot password - Initiate password reset
 exports.forgotPassword = async (req, res) => {
   try {
@@ -240,7 +471,7 @@ exports.forgotPassword = async (req, res) => {
     // Generate reset token (expires in 1 hour)
     const resetToken = crypto.randomBytes(32).toString("hex");
     user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = Date.now() + 7200000; // 1 hour
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour (fixed from 7200000)
     await user.save();
 
     // Send password reset email

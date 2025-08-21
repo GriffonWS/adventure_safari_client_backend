@@ -13,8 +13,8 @@ app.use(
   cors({
     origin: function (origin, callback) {
       const allowedOrigins = [
+        "http://localhost:3000",
         "https://adventure-safari-client-frontend.vercel.app",
-        "http://localhost:3000"
       ];
       
       if (!origin || allowedOrigins.includes(origin)) {
