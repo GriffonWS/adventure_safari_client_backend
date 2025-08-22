@@ -182,15 +182,18 @@ exports.login = async (req, res) => {
     // If no 2FA, generate final JWT token
     const token = jwt.sign({ email: user.email }, process.env.JWT_SECRET || "your-secret-key", { expiresIn: "7d" });
 
-    res.json({
-      message: "Login successful",
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        has2FA: false
-      }
+   res.json({
+  message: "Login successful",
+  token,
+  user: {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    isPasswordUpload: user.isPasswordUpload,
+    isRegistrationPayment: user.isRegistrationPayment,
+    has2FA: !!user.twoFactorSecret
+  }
+
     });
   } catch (error) {
     console.error("Login error:", error);
