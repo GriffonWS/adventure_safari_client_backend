@@ -1,7 +1,6 @@
 const express = require("express")
 const userController = require("../controllers/userController")
 const auth = require("../middleware/auth")
-const passportUploadMiddleware = require("../middleware/passportUpload")
 
 const router = express.Router()
 

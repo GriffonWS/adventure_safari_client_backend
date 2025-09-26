@@ -13,10 +13,63 @@ const guestSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
-    registrationPayment: {
-      type: Boolean,
-      default: false,
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
     },
+    phone: {
+      type: String,
+      trim: true,
+    },
+    country: {
+      type: String,
+      trim: true,
+    },
+    state: {
+      type: String,
+      trim: true,
+    },
+    address: {
+      type: String,
+      trim: true,
+    },
+    // Passport Information
+    passport: {
+      type: String,
+      trim: true,
+    },
+    passportNumber: {
+      type: String,
+      trim: true,
+    },
+    passportCountry: {
+      type: String,
+      trim: true,
+    },
+    passportIssuedOn: {
+      type: Date,
+    },
+    passportExpiresOn: {
+      type: Date,
+    },
+    // Emergency Contact
+    emergencyContactName: {
+      type: String,
+      trim: true,
+    },
+    emergencyContactNumber: {
+      type: String,
+      trim: true,
+    },
+    // Documents
+    medicalCertificate: {
+      type: String,
+      trim: true,
+    },
+    travelInsurance: {
+      type: String,
+      trim: true,
+    }
   },
   {
     timestamps: true,
@@ -69,6 +122,10 @@ const bookingSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    bookingId: {
+      type: String,
+      required: true,
+    },
     bookingDate: {
       type: Date,
       default: Date.now,
@@ -84,6 +141,19 @@ const bookingSchema = new mongoose.Schema(
       enum: ["pending", "paid", "refunded"],
       default: "pending",
     },
+    registrationPaymentDetails: {
+      transactionId: String,
+      paymentDate: Date,
+      amount: Number,
+      currency: String,
+      payerEmail: String,
+      payerName: String,
+      status: {
+        type: String,
+        enum: ["pending", "paid", "refunded"],
+        default: "pending"
+      }
+    }
   },
   {
     timestamps: true,

@@ -25,16 +25,71 @@ exports.getAllTrips = async (req, res) => {
   }
 }
 
+// Get single booking
+exports.getBookingById = async (req, res) => {
+  console.log("Hoo")
+  try {
+    const { id } = req.params
+    const requestingUserEmail = req.user?.email || req.body?.email
+
+    // Find authenticated user by email
+    const user = await User.findOne({ email: requestingUserEmail })
+    if (!user) {
+      return res.status(404).json({ message: "Authenticated user not found" })
+    }
+
+    // Find booking by ID and ensure it belongs to the requesting user
+    const booking = await Booking.findOne({ 
+      _id: id, 
+      userId: user._id 
+    })
+      .populate('tripId', 'name destination price image')
+      .populate('userId', 'name email')
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found or access denied" })
+    }
+
+    res.json({
+      message: "Booking retrieved successfully",
+      booking
+    })
+  } catch (error) {
+    console.error("Get booking by ID error:", error)
+    
+    // Handle invalid ObjectId format
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "Invalid booking ID format" })
+    }
+    
+    res.status(500).json({ message: "Server error while fetching booking" })
+  }
+}
+
 // Create booking
 exports.createBooking = async (req, res) => {
   try {
-    const { tripId, guests } = req.body
+    const { tripId, guests, date } = req.body
     const userEmail = req.user?.email || req.body?.email
 
     // Validate required fields
     if (!tripId || !guests || !Array.isArray(guests) || guests.length === 0) {
       return res.status(400).json({ 
         message: "Trip ID and at least one guest are required" 
+      })
+    }
+
+    // Validate date
+    if (!date) {
+      return res.status(400).json({ 
+        message: "Booking date is required" 
+      })
+    }
+
+    const bookingDate = new Date(date)
+    if (isNaN(bookingDate.getTime())) {
+      return res.status(400).json({ 
+        message: "Invalid date format" 
       })
     }
 
@@ -63,12 +118,33 @@ exports.createBooking = async (req, res) => {
       return res.status(404).json({ message: "User not found" })
     }
 
+    // Generate booking ID
+    const generateBookingId = (safariName, bookingDate) => {
+      // Clean safari name: remove spaces, convert to uppercase, take first 3-4 chars
+      const cleanSafariName = safariName
+        .replace(/[^a-zA-Z0-9]/g, '') // Remove special characters
+        .toUpperCase()
+        .substring(0, 4) // Take first 4 characters
+        .padEnd(3, 'X') // Ensure at least 3 characters, pad with 'X' if needed
+
+      // Format date as YYYYMMDD
+      const formattedDate = bookingDate.toISOString().slice(0, 10).replace(/-/g, '')
+
+      // Generate 5-digit random number
+      const randomNumber = Math.floor(10000 + Math.random() * 90000)
+
+      return `${cleanSafariName}-${formattedDate}-${randomNumber}`
+    }
+
+    const bookingId = generateBookingId(trip.name, bookingDate)
+
     // Create booking
     const booking = new Booking({
       tripId,
       userId: user._id,
+      bookingId,
       guests,
-      bookingDate: new Date()
+      bookingDate: bookingDate
     })
 
     await booking.save()
@@ -88,7 +164,7 @@ exports.createBooking = async (req, res) => {
   }
 }
 
-
+// Get all bookings for authenticated user
 exports.getAllBookings = async (req, res) => {
   try {
     const { bookingStatus, paymentStatus } = req.query
