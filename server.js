@@ -13,9 +13,9 @@ app.use(
   cors({
     origin: function (origin, callback) {
       const allowedOrigins = [
+        "https://app.adventuresafarinetwork.com",
         "http://localhost:3000",
         "https://adventure-safari-client-frontend.vercel.app",
-        "https://app.adventuresafarinetwork.com",
       ];
       
       // Allow requests with no origin (like mobile apps, Postman, etc.)

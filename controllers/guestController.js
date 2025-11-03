@@ -328,6 +328,56 @@ exports.getGuests = async (req, res) => {
   }
 };
 
+// Update booking-level acknowledgment
+exports.updateAcknowledge = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { acknowledged } = req.body;
+    const userEmail = req.user?.email || req.body?.email;
+
+    console.log('Update acknowledge:', { bookingId, userEmail, acknowledged });
+
+    if (!userEmail) {
+      return res.status(401).json({ message: "User email not found in request" });
+    }
+
+    if (typeof acknowledged !== 'boolean') {
+      return res.status(400).json({ message: "Acknowledged status must be a boolean value" });
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email: userEmail });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Find booking
+    const booking = await Booking.findOne({
+      _id: bookingId,
+      userId: user._id
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // Update acknowledgment status
+    booking.acknowledged = acknowledged;
+    await booking.save();
+
+    res.status(200).json({
+      message: "Acknowledgment status updated successfully",
+      booking: {
+        _id: booking._id,
+        acknowledged: booking.acknowledged
+      }
+    });
+  } catch (error) {
+    console.error("Update acknowledge error:", error);
+    res.status(500).json({ message: "Server error while updating acknowledgment status" });
+  }
+};
+
 // Update registration payment status
 exports.updateRegistrationPayment = async (req, res) => {
   try {
