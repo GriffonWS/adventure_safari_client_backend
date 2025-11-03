@@ -153,6 +153,10 @@ const bookingSchema = new mongoose.Schema(
         enum: ["pending", "paid", "refunded"],
         default: "pending"
       }
+    },
+     acknowledge: {
+      type: Boolean,
+      default: false
     }
   },
   {

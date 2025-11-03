@@ -15,6 +15,7 @@ app.use(
       const allowedOrigins = [
         "http://localhost:3000",
         "https://adventure-safari-client-frontend.vercel.app",
+        "https://app.adventuresafarinetwork.com",
       ];
       
       // Allow requests with no origin (like mobile apps, Postman, etc.)

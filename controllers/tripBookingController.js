@@ -203,3 +203,42 @@ exports.getAllBookings = async (req, res) => {
     res.status(500).json({ message: "Server error while fetching bookings" })
   }
 }
+
+
+exports.updateAcknowledge = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { acknowledge } = req.body;
+    const userEmail = req.user?.email || req.body?.email;
+
+    console.log('Update acknowledge status:', { bookingId, userEmail, acknowledge });
+
+    if (!userEmail) {
+      return res.status(401).json({ message: "User email not found in request" });
+    }
+
+    if (typeof acknowledge !== 'boolean') {
+      return res.status(400).json({ message: "Acknowledge status must be a boolean value" });
+    }
+
+    const validation = await validateBooking(bookingId, userEmail);
+    if (validation.error) {
+      return res.status(validation.status).json({ message: validation.error });
+    }
+
+    const { booking } = validation;
+
+    // Update acknowledge status
+    booking.acknowledge = acknowledge;
+    await booking.save();
+
+    res.status(200).json({
+      message: "Acknowledge status updated successfully",
+      acknowledge: booking.acknowledge,
+      booking: booking
+    });
+  } catch (error) {
+    console.error("Update acknowledge error:", error);
+    res.status(500).json({ message: "Server error while updating acknowledge status" });
+  }
+};

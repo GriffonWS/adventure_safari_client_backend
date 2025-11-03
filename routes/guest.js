@@ -29,6 +29,12 @@ router.put("/form-submission/:bookingId/:guestIndex",
   guestController.updateGuestForm
 );
 
+// 4. ACKNOWLEDGE ROUTE (Booking-level acknowledgment)
+router.put("/acknowledge/:bookingId", 
+  auth, 
+  guestController.updateAcknowledge
+);
+
 // Additional utility routes
 // Get specific guest information
 router.get("/get-guest/:bookingId/:guestIndex", auth, guestController.getGuest);
