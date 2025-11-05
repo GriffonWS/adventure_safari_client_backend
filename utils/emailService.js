@@ -18,7 +18,7 @@ const sendVerificationEmail = async (email, token) => {
 
   const mailOptions = {
     from: {
-      name: "Adventure Safarari Account Verification",
+      name: "Adventure Safari Account Verification",
       address: process.env.EMAIL_USER,
     },
     to: email,
