@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const passport = require('passport');
 const authController = require('../controllers/authController');
 const authMiddleware = require('../middleware/auth');
 
@@ -11,7 +12,42 @@ router.post("/resend-verification", authController.resendVerification);
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password/:token", authController.resetPassword);
 
-// New 2FA routes
+// Google OAuth routes
+router.get(
+  "/google",
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+    prompt: "select_account"
+  })
+);
+
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    failureRedirect: "/login",
+    session: false
+  }),
+  authController.googleSuccess
+);
+
+// Apple OAuth routes
+router.get(
+  "/apple",
+  passport.authenticate("apple", {
+    scope: ["name", "email"]
+  })
+);
+
+router.post(
+  "/apple/callback",
+  passport.authenticate("apple", {
+    failureRedirect: "/login",
+    session: false
+  }),
+  authController.appleSuccess
+);
+
+// 2FA routes
 router.post('/verify-2fa', authController.verify2FA);
 router.post('/2fa/generate-secret', authMiddleware, authController.generate2FASecret);
 router.post('/2fa/enable', authMiddleware, authController.enable2FA);

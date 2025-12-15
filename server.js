@@ -2,9 +2,14 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const dotenv = require("dotenv");
+const passport = require("passport");
+const session = require("express-session");
 
 // Load environment variables
 dotenv.config();
+
+// Initialize Passport configuration
+require("./config/passport")(passport);
 
 const app = express();
 
@@ -54,6 +59,23 @@ app.options("*", (req, res) => {
 // Body parser middleware
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Express session middleware (for Passport)
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "your-secret-key",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  })
+);
+
+// Passport middleware
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Routes
 app.use("/api/auth", require("./routes/auth"));

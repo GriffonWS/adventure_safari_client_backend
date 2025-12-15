@@ -542,15 +542,61 @@ exports.resetPassword = async (req, res) => {
     user.resetPasswordExpires = undefined;
     await user.save();
 
-    res.status(200).json({ 
+    res.status(200).json({
       success: true,
-      message: "Password reset successfully" 
+      message: "Password reset successfully"
     });
   } catch (error) {
     console.error("Reset password error:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: "Server error while resetting password" 
+      message: "Server error while resetting password"
     });
+  }
+};
+
+// Google OAuth Success Handler
+exports.googleSuccess = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.redirect(`${process.env.CLIENT_URL}/login?error=auth_failed`);
+    }
+
+    // Generate JWT token with email (to match regular login format)
+    const token = jwt.sign(
+      { email: req.user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // Redirect to frontend with token
+    return res.redirect(`${process.env.CLIENT_URL}/auth/success?token=${token}`);
+
+  } catch (error) {
+    console.error("Google auth error:", error);
+    return res.redirect(`${process.env.CLIENT_URL}/login?error=auth_failed`);
+  }
+};
+
+// Apple OAuth Success Handler
+exports.appleSuccess = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.redirect(`${process.env.CLIENT_URL}/login?error=auth_failed`);
+    }
+
+    // Generate JWT token with email (to match regular login format)
+    const token = jwt.sign(
+      { email: req.user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // Redirect to frontend with token
+    return res.redirect(`${process.env.CLIENT_URL}/auth/success?token=${token}`);
+
+  } catch (error) {
+    console.error("Apple auth error:", error);
+    return res.redirect(`${process.env.CLIENT_URL}/login?error=auth_failed`);
   }
 };
