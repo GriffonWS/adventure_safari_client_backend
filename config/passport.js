@@ -74,29 +74,38 @@ module.exports = (passport) => {
   );
 
   // Apple OAuth Strategy
-  if (process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY_PATH) {
+  if (process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && (process.env.APPLE_PRIVATE_KEY_PATH || process.env.APPLE_PRIVATE_KEY)) {
     const path = require('path');
     const fs = require('fs');
 
-    // Resolve private key path (support both relative and absolute paths)
-    let privateKeyPath = process.env.APPLE_PRIVATE_KEY_PATH;
-    if (!path.isAbsolute(privateKeyPath)) {
-      privateKeyPath = path.resolve(__dirname, '..', privateKeyPath);
-    }
+    // Support both file path and direct key content from env variable
+    let appleStrategyConfig = {
+      clientID: process.env.APPLE_CLIENT_ID,
+      teamID: process.env.APPLE_TEAM_ID,
+      keyID: process.env.APPLE_KEY_ID,
+      callbackURL: process.env.APPLE_CALLBACK_URL,
+      passReqToCallback: true
+    };
 
-    console.log("Apple Private Key Path:", privateKeyPath);
-    console.log("Apple Private Key Exists:", fs.existsSync(privateKeyPath));
+    // Use APPLE_PRIVATE_KEY env variable if available (for cloud deployment like Render)
+    if (process.env.APPLE_PRIVATE_KEY) {
+      console.log("Using Apple private key from environment variable");
+      appleStrategyConfig.privateKeyString = process.env.APPLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+    }
+    // Otherwise use file path (for local development)
+    else if (process.env.APPLE_PRIVATE_KEY_PATH) {
+      let privateKeyPath = process.env.APPLE_PRIVATE_KEY_PATH;
+      if (!path.isAbsolute(privateKeyPath)) {
+        privateKeyPath = path.resolve(__dirname, '..', privateKeyPath);
+      }
+      console.log("Apple Private Key Path:", privateKeyPath);
+      console.log("Apple Private Key Exists:", fs.existsSync(privateKeyPath));
+      appleStrategyConfig.privateKeyLocation = privateKeyPath;
+    }
 
     passport.use(
       new AppleStrategy(
-        {
-          clientID: process.env.APPLE_CLIENT_ID,
-          teamID: process.env.APPLE_TEAM_ID,
-          keyID: process.env.APPLE_KEY_ID,
-          privateKeyLocation: privateKeyPath,
-          callbackURL: process.env.APPLE_CALLBACK_URL,
-          passReqToCallback: true
-        },
+        appleStrategyConfig,
         async (req, accessToken, refreshToken, idToken, profile, done) => {
           try {
             console.log("Apple OAuth callback triggered");
@@ -177,7 +186,8 @@ module.exports = (passport) => {
       APPLE_CLIENT_ID: !!process.env.APPLE_CLIENT_ID,
       APPLE_TEAM_ID: !!process.env.APPLE_TEAM_ID,
       APPLE_KEY_ID: !!process.env.APPLE_KEY_ID,
-      APPLE_PRIVATE_KEY_PATH: !!process.env.APPLE_PRIVATE_KEY_PATH
+      APPLE_PRIVATE_KEY_PATH: !!process.env.APPLE_PRIVATE_KEY_PATH,
+      APPLE_PRIVATE_KEY: !!process.env.APPLE_PRIVATE_KEY
     });
   }
 
