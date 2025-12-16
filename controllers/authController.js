@@ -581,7 +581,11 @@ exports.googleSuccess = async (req, res) => {
 // Apple OAuth Success Handler
 exports.appleSuccess = async (req, res) => {
   try {
+    console.log("appleSuccess handler called");
+    console.log("req.user:", req.user ? { id: req.user._id, email: req.user.email } : "undefined");
+
     if (!req.user) {
+      console.error("No user found in request after Apple authentication");
       return res.redirect(`${process.env.CLIENT_URL}/login?error=auth_failed`);
     }
 
@@ -592,11 +596,16 @@ exports.appleSuccess = async (req, res) => {
       { expiresIn: "7d" }
     );
 
+    console.log("Apple auth successful, redirecting with token");
     // Redirect to frontend with token
     return res.redirect(`${process.env.CLIENT_URL}/auth/success?token=${token}`);
 
   } catch (error) {
-    console.error("Apple auth error:", error);
+    console.error("Apple auth error in success handler:", {
+      message: error.message,
+      stack: error.stack,
+      user: req.user ? { id: req.user._id, email: req.user.email } : "undefined"
+    });
     return res.redirect(`${process.env.CLIENT_URL}/login?error=auth_failed`);
   }
 };

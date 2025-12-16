@@ -75,22 +75,43 @@ module.exports = (passport) => {
 
   // Apple OAuth Strategy
   if (process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY_PATH) {
+    const path = require('path');
+    const fs = require('fs');
+
+    // Resolve private key path (support both relative and absolute paths)
+    let privateKeyPath = process.env.APPLE_PRIVATE_KEY_PATH;
+    if (!path.isAbsolute(privateKeyPath)) {
+      privateKeyPath = path.resolve(__dirname, '..', privateKeyPath);
+    }
+
+    console.log("Apple Private Key Path:", privateKeyPath);
+    console.log("Apple Private Key Exists:", fs.existsSync(privateKeyPath));
+
     passport.use(
       new AppleStrategy(
         {
           clientID: process.env.APPLE_CLIENT_ID,
           teamID: process.env.APPLE_TEAM_ID,
           keyID: process.env.APPLE_KEY_ID,
-          privateKeyLocation: process.env.APPLE_PRIVATE_KEY_PATH,
+          privateKeyLocation: privateKeyPath,
           callbackURL: process.env.APPLE_CALLBACK_URL,
           passReqToCallback: true
         },
         async (req, accessToken, refreshToken, idToken, profile, done) => {
           try {
+            console.log("Apple OAuth callback triggered");
+            console.log("Profile:", JSON.stringify(profile, null, 2));
+            console.log("ID Token:", idToken);
+
             // Apple provides minimal profile data
             const appleId = profile.id;
             const email = profile.email;
-            const name = profile.name ? `${profile.name.firstName || ''} ${profile.name.lastName || ''}`.trim() : email.split('@')[0];
+
+            console.log("Apple ID:", appleId);
+            console.log("Email:", email);
+
+            // Generate a name from email or use a default
+            const name = profile.name ? `${profile.name.firstName || ''} ${profile.name.lastName || ''}`.trim() : (email ? email.split('@')[0] : `AppleUser_${appleId.substring(0, 8)}`);
 
             // 1. Check for existing Apple user
             let user = await User.findOneAndUpdate(
@@ -99,7 +120,10 @@ module.exports = (passport) => {
               { new: true }
             );
 
-            if (user) return done(null, user);
+            if (user) {
+              console.log("Found existing Apple user:", user.email);
+              return done(null, user);
+            }
 
             // 2. Check for existing email user (if email provided)
             if (email) {
@@ -116,23 +140,32 @@ module.exports = (passport) => {
               );
 
               if (user) {
+                console.log("Linked Apple ID to existing user:", user.email);
                 return done(null, user);
               }
             }
 
             // 3. Create new Apple user
-            user = await User.create({
+            const newUserData = {
               appleId: appleId,
               name: name,
               email: email || `apple_${appleId}@adventuresafari.temp`,
               isVerified: true,
               lastLogin: new Date()
-            });
+            };
+
+            console.log("Creating new Apple user:", newUserData);
+            user = await User.create(newUserData);
+            console.log("Successfully created new Apple user:", user.email);
 
             return done(null, user);
 
           } catch (error) {
-            console.error("Apple OAuth error:", error);
+            console.error("Apple OAuth error details:", {
+              message: error.message,
+              stack: error.stack,
+              name: error.name
+            });
             return done(error, null);
           }
         }
@@ -140,6 +173,12 @@ module.exports = (passport) => {
     );
   } else {
     console.log("Apple OAuth not configured - skipping Apple strategy");
+    console.log("Missing config:", {
+      APPLE_CLIENT_ID: !!process.env.APPLE_CLIENT_ID,
+      APPLE_TEAM_ID: !!process.env.APPLE_TEAM_ID,
+      APPLE_KEY_ID: !!process.env.APPLE_KEY_ID,
+      APPLE_PRIVATE_KEY_PATH: !!process.env.APPLE_PRIVATE_KEY_PATH
+    });
   }
 
   // Session serialization

@@ -40,8 +40,14 @@ router.get(
 
 router.post(
   "/apple/callback",
+  (req, res, next) => {
+    console.log("Apple callback received");
+    console.log("Request body:", req.body);
+    console.log("Request query:", req.query);
+    next();
+  },
   passport.authenticate("apple", {
-    failureRedirect: "/login",
+    failureRedirect: `${process.env.CLIENT_URL}/login?error=apple_auth_failed`,
     session: false
   }),
   authController.appleSuccess
