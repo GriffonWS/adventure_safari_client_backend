@@ -21,6 +21,7 @@ app.use(
         "http://app.adventuresafarinetwork.com",
         "http://localhost:3000",
         "https://adventure-safari-client-frontend.vercel.app",
+        "https://appleid.apple.com", // Add Apple's authentication domain
       ];
 
       // Allow requests with no origin (like mobile apps, Postman, etc.)
@@ -31,16 +32,16 @@ app.use(
       }
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Add OPTIONS
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
       "X-Requested-With",
       "Accept",
       "Origin",
-    ], // Specify allowed headers
+    ],
     preflightContinue: false,
-    optionsSuccessStatus: 200, // For legacy browser support
+    optionsSuccessStatus: 200,
   })
 );
 
