@@ -5,15 +5,22 @@ const User = require("../models/User");
 module.exports = (passport) => {
   // Debug: Log environment variables
   console.log("GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID);
-  console.log("GOOGLE_CLIENT_SECRET:", process.env.GOOGLE_CLIENT_SECRET ? "***" : "NOT SET");
+  console.log(
+    "GOOGLE_CLIENT_SECRET:",
+    process.env.GOOGLE_CLIENT_SECRET ? "***" : "NOT SET"
+  );
   console.log("GOOGLE_CALLBACK_URL:", process.env.GOOGLE_CALLBACK_URL);
   console.log("APPLE_CLIENT_ID:", process.env.APPLE_CLIENT_ID);
   console.log("APPLE_TEAM_ID:", process.env.APPLE_TEAM_ID);
   console.log("APPLE_KEY_ID:", process.env.APPLE_KEY_ID);
 
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    console.error("ERROR: Google OAuth credentials not found in environment variables!");
-    console.error("Please ensure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in .env file");
+    console.error(
+      "ERROR: Google OAuth credentials not found in environment variables!"
+    );
+    console.error(
+      "Please ensure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set in .env file"
+    );
     throw new Error("Missing Google OAuth credentials");
   }
 
@@ -23,7 +30,7 @@ module.exports = (passport) => {
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL: process.env.GOOGLE_CALLBACK_URL,
-        passReqToCallback: true
+        passReqToCallback: true,
       },
       async (req, accessToken, refreshToken, profile, done) => {
         try {
@@ -44,8 +51,8 @@ module.exports = (passport) => {
               $set: {
                 googleId: profile.id,
                 lastLogin: new Date(),
-                isVerified: true // Auto-verify email for Google users
-              }
+                isVerified: true, // Auto-verify email for Google users
+              },
             },
             { new: true }
           );
@@ -60,11 +67,10 @@ module.exports = (passport) => {
             name: profile.displayName,
             email,
             isVerified: true,
-            lastLogin: new Date()
+            lastLogin: new Date(),
           });
 
           return done(null, user);
-
         } catch (error) {
           console.error("Google OAuth error:", error);
           return done(error, null);
@@ -74,9 +80,14 @@ module.exports = (passport) => {
   );
 
   // Apple OAuth Strategy
-  if (process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && (process.env.APPLE_PRIVATE_KEY_PATH || process.env.APPLE_PRIVATE_KEY)) {
-    const path = require('path');
-    const fs = require('fs');
+  if (
+    process.env.APPLE_CLIENT_ID &&
+    process.env.APPLE_TEAM_ID &&
+    process.env.APPLE_KEY_ID &&
+    (process.env.APPLE_PRIVATE_KEY_PATH || process.env.APPLE_PRIVATE_KEY)
+  ) {
+    const path = require("path");
+    const fs = require("fs");
 
     // Support both file path and direct key content from env variable
     let appleStrategyConfig = {
@@ -84,19 +95,20 @@ module.exports = (passport) => {
       teamID: process.env.APPLE_TEAM_ID,
       keyID: process.env.APPLE_KEY_ID,
       callbackURL: process.env.APPLE_CALLBACK_URL,
-      passReqToCallback: true
+      passReqToCallback: true,
     };
 
     // Use APPLE_PRIVATE_KEY env variable if available (for cloud deployment like Render)
     if (process.env.APPLE_PRIVATE_KEY) {
       console.log("Using Apple private key from environment variable");
-      appleStrategyConfig.privateKeyString = process.env.APPLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+      appleStrategyConfig.privateKeyString =
+        process.env.APPLE_PRIVATE_KEY.replace(/\\n/g, "\n");
     }
     // Otherwise use file path (for local development)
     else if (process.env.APPLE_PRIVATE_KEY_PATH) {
       let privateKeyPath = process.env.APPLE_PRIVATE_KEY_PATH;
       if (!path.isAbsolute(privateKeyPath)) {
-        privateKeyPath = path.resolve(__dirname, '..', privateKeyPath);
+        privateKeyPath = path.resolve(__dirname, "..", privateKeyPath);
       }
       console.log("Apple Private Key Path:", privateKeyPath);
       console.log("Apple Private Key Exists:", fs.existsSync(privateKeyPath));
@@ -112,15 +124,46 @@ module.exports = (passport) => {
             console.log("Profile:", JSON.stringify(profile, null, 2));
             console.log("ID Token:", idToken);
 
-            // Apple provides minimal profile data
-            const appleId = profile.id;
-            const email = profile.email;
+            // Decode the ID token to get user information
+            // Apple's passport strategy doesn't always populate profile correctly
+            let appleId = profile.id;
+            let email = profile.email;
+            // hello
+
+            // If profile is empty, decode the ID token manually
+            if (!appleId || !email) {
+              try {
+                // Decode JWT token (without verification for simplicity)
+                const tokenParts = idToken.split(".");
+                const payload = JSON.parse(
+                  Buffer.from(tokenParts[1], "base64").toString()
+                );
+
+                console.log("Decoded ID Token Payload:", payload);
+
+                appleId = payload.sub; // Apple's user ID is in 'sub' claim
+                email = payload.email;
+              } catch (decodeError) {
+                console.error("Error decoding ID token:", decodeError);
+              }
+            }
 
             console.log("Apple ID:", appleId);
             console.log("Email:", email);
 
+            // Validate required fields
+            if (!appleId) {
+              throw new Error("Apple ID not found in authentication response");
+            }
+
             // Generate a name from email or use a default
-            const name = profile.name ? `${profile.name.firstName || ''} ${profile.name.lastName || ''}`.trim() : (email ? email.split('@')[0] : `AppleUser_${appleId.substring(0, 8)}`);
+            const name = profile.name
+              ? `${profile.name.firstName || ""} ${
+                  profile.name.lastName || ""
+                }`.trim()
+              : email
+              ? email.split("@")[0]
+              : `AppleUser_${appleId.substring(0, 8)}`;
 
             // 1. Check for existing Apple user
             let user = await User.findOneAndUpdate(
@@ -142,8 +185,8 @@ module.exports = (passport) => {
                   $set: {
                     appleId: appleId,
                     lastLogin: new Date(),
-                    isVerified: true // Auto-verify email for Apple users
-                  }
+                    isVerified: true, // Auto-verify email for Apple users
+                  },
                 },
                 { new: true }
               );
@@ -160,7 +203,7 @@ module.exports = (passport) => {
               name: name,
               email: email || `apple_${appleId}@adventuresafari.temp`,
               isVerified: true,
-              lastLogin: new Date()
+              lastLogin: new Date(),
             };
 
             console.log("Creating new Apple user:", newUserData);
@@ -168,12 +211,11 @@ module.exports = (passport) => {
             console.log("Successfully created new Apple user:", user.email);
 
             return done(null, user);
-
           } catch (error) {
             console.error("Apple OAuth error details:", {
               message: error.message,
               stack: error.stack,
-              name: error.name
+              name: error.name,
             });
             return done(error, null);
           }
@@ -187,7 +229,7 @@ module.exports = (passport) => {
       APPLE_TEAM_ID: !!process.env.APPLE_TEAM_ID,
       APPLE_KEY_ID: !!process.env.APPLE_KEY_ID,
       APPLE_PRIVATE_KEY_PATH: !!process.env.APPLE_PRIVATE_KEY_PATH,
-      APPLE_PRIVATE_KEY: !!process.env.APPLE_PRIVATE_KEY
+      APPLE_PRIVATE_KEY: !!process.env.APPLE_PRIVATE_KEY,
     });
   }
 
