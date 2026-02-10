@@ -18,7 +18,7 @@ app.use(
   cors({
     origin: function (origin, callback) {
       const allowedOrigins = [
-        "http://app.adventuresafarinetwork.com",
+        "https://app.adventuresafarinetwork.com",
         "http://localhost:3000",
         "https://adventure-safari-client-frontend.vercel.app",
         "https://appleid.apple.com", // Add Apple's authentication domain
@@ -42,7 +42,7 @@ app.use(
     ],
     preflightContinue: false,
     optionsSuccessStatus: 200,
-  })
+  }),
 );
 
 // Handle preflight OPTIONS requests explicitly
@@ -51,7 +51,7 @@ app.options("*", (req, res) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+    "Content-Type, Authorization, X-Requested-With, Accept, Origin",
   );
   res.header("Access-Control-Allow-Credentials", "true");
   res.sendStatus(200);
@@ -71,7 +71,7 @@ app.use(
       secure: process.env.NODE_ENV === "production",
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
-  })
+  }),
 );
 
 // Passport middleware
